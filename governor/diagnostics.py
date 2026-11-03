@@ -23,6 +23,10 @@ def inspect_setup(config, camera):
     add("Hands-free audio", "ready" if audio_installed else "optional",
         "Native audio package installed; devices still need calibration."
         if audio_installed else "Optional native microphone worker is not installed on this machine.")
+    wake_ready = importlib.util.find_spec("vosk") is not None and (config.model_dir / "vosk-model-small-en-us-0.15" / "am" / "final.mdl").is_file()
+    add("Wake phrase", "ready" if wake_ready else "optional",
+        "Say Governor, pause, then speak. Run governor listen after calibrating the microphone."
+        if wake_ready else "Install wake extras and run scripts/download-wake-model.py. Detection runs locally.")
     if camera["status"] == "running":
         add("Camera", "ready", f"Running locally; {camera['face_count']} face(s) visible.")
     elif not config.camera:

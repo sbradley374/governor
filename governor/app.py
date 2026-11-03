@@ -19,6 +19,17 @@ from .camera import Camera
 from .config import Config
 from .memory import Memory
 from .diagnostics import inspect_setup
+from .room import ArrivalPolicy
+
+
+class MemoryPreference(BaseModel):
+    enabled: bool
+
+
+class InteractionSettings(BaseModel):
+    greetings: bool = False
+    followup_seconds: int = Field(default=20, ge=5, le=60)
+    greeting_cooldown: int = Field(default=600, ge=60, le=3600)
 
 
 class TextInput(BaseModel):
@@ -86,17 +97,26 @@ class Controller:
         self.preview = None
         self.preview_until = 0
         self.display = DisplaySettings(**self.memory.setting("display", {}))
+        self.interaction = InteractionSettings(**self.memory.setting("interaction", {}))
+        self.arrivals = ArrivalPolicy()
+        self.listen_until = 0
+        self.audio_session = False
+        self.capture_reserved = False
 
     def state(self):
         if self.status == "speaking" and time.monotonic() > self.speaking_until:
             self.status = "idle"
         now = time.monotonic()
+        if self.audio_session and self.status == "idle" and now > self.listen_until:
+            self.selected = None
+            self.invalidate()
         preview = self.preview if now < self.preview_until and self.status == "idle" else None
         return {"status": self.status, "emotion": self.emotion, "caption": self.caption,
                 "transcript": self.transcript, "error": self.error, "paused": self.paused,
                 "selected": self.selected, "provider": self.config.provider,
                 "turn_id": self.turn_id, "camera": self.camera.snapshot(),
                 "session_id": self.session_id, "display": self.display.model_dump(),
+                "interaction": self.interaction.model_dump(), "awake": now < self.listen_until,
                 "preview": preview, "dimmed": self.status == "idle" and now - self.last_activity > self.display.idle_seconds}
 
     def invalidate(self):
@@ -110,8 +130,11 @@ class Controller:
         self.error = None
         self.last_activity = time.monotonic()
         self.preview = None
+        self.listen_until = 0
+        self.audio_session = False
+        self.capture_reserved = False
 
-    async def turn(self, text=None, audio=None, session_id=None, voice_test=False):
+    async def turn(self, text=None, audio=None, session_id=None, voice_test=False, greeting=False, greeting_name=None):
         self.state()
         if session_id is not None and session_id != self.session_id:
             raise HTTPException(409, "The speaker or session changed. Please start a new recording or message.")
@@ -122,6 +145,7 @@ class Controller:
         if time.monotonic() - self.last_turn < 0.5:
             raise HTTPException(429, "Please wait a moment before the next turn")
         async with self.lock:
+            self.capture_reserved = False
             epoch, person_id = self.epoch, self.selected
             self.error = None
             self.last_turn = time.monotonic()
@@ -140,8 +164,26 @@ class Controller:
                     raise HTTPException(422, "Please keep each turn under 2000 characters")
                 self.status, self.emotion, self.transcript = "thinking", "thinking", text
                 profile = self.memory.person(person_id) if person_id else None
+                if profile and profile["auto_memory"]:
+                    profile["current_session_summary"] = self.memory.summary(person_id, self.session_id)
                 remember = re.match(r"^remember that\s+(.+)$", text, re.I | re.S)
-                if voice_test:
+                introduction = re.fullmatch(r"(?:this is|my name is|i am|i'm) (.{1,60}?)[.!]?", text, re.I)
+                matches = [p for p in self.memory.people() if introduction and p["name"].casefold() == introduction[1].strip().casefold()]
+                if greeting:
+                    hello = "Hello, " + greeting_name if greeting_name else "Hello there"
+                    result = {"text": hello + ". The Governor is in residence. How is your day going?", "emotion": "happy"}
+                elif introduction and len(matches) == 1:
+                    # Spoken self-introduction is explicit selection, never a camera guess.
+                    self.selected = person_id = matches[0]["id"]
+                    self.history = []
+                    self.session_id = str(uuid.uuid4())
+                    result = {"text": "Hello, " + matches[0]["name"] + ". Your archive is ready. What is on your mind?", "emotion": "happy"}
+                elif introduction and (len(matches) > 1 or re.match(r"^(this is|my name is) ", text, re.I)):
+                    self.selected = person_id = None
+                    self.history = []
+                    self.session_id = str(uuid.uuid4())
+                    result = {"text": "I cannot find a unique profile for that name. Please choose or create one in the console. We can chat as visitors meanwhile.", "emotion": "curious"}
+                elif voice_test:
                     result = {"text": "The Governor is in residence. One, two, three. This is a local speaker test.", "emotion": "happy"}
                 elif remember:
                     if person_id:
@@ -150,7 +192,7 @@ class Controller:
                     else:
                         result = {"text": "Choose or create a profile first, so I know whose archive this belongs in.", "emotion": "curious"}
                 else:
-                    result = await self.brain.reply(text, profile, self.memory.facts(person_id) if person_id else [], self.history)
+                    result = await self.brain.reply(text, profile, self.memory.retrieve(person_id, text) if person_id else [], self.history)
                 if epoch != self.epoch:
                     raise HTTPException(409, "Turn cancelled")
                 # Speech synthesis failure should not discard a good text reply.
@@ -160,15 +202,18 @@ class Controller:
                     wav = None
                 if epoch != self.epoch:
                     raise HTTPException(409, "Turn cancelled")
-                if not voice_test:
+                if person_id and not voice_test and not greeting:
+                    self.memory.absorb(person_id, self.session_id, result.get("memory"))
+                if not voice_test and not greeting:
                     self.history = (self.history + [{"role": "user", "content": text}, {"role": "assistant", "content": result["text"]}])[-12:]
-                if person_id and not voice_test:
+                if person_id and not voice_test and not greeting:
                     self.memory.interacted(person_id)
                 self.last_activity = time.monotonic()
                 self.caption, self.emotion = result["text"], result["emotion"]
                 self.status, self.turn_id = "speaking", str(uuid.uuid4())
                 self.speaking_until = time.monotonic() + min(120, max(15, len(result["text"]) / 9))
-                return {**result, "transcript": text, "turn_id": self.turn_id, "audio": base64.b64encode(wav).decode() if wav else None}
+                return {"text": result["text"], "emotion": result["emotion"], "transcript": text,
+                        "turn_id": self.turn_id, "session_id": self.session_id, "audio": base64.b64encode(wav).decode() if wav else None}
             except HTTPException:
                 if epoch == self.epoch:
                     self.status = "paused" if self.paused else "idle"
@@ -267,6 +312,61 @@ def create_app(config=None):
         ctl().last_activity = time.monotonic()
         return {"ok": True}
 
+    @app.post("/api/interaction")
+    async def interaction(body: InteractionSettings):
+        ctl().interaction = body
+        ctl().memory.save_setting("interaction", body.model_dump())
+        return body.model_dump()
+
+    @app.post("/api/activate")
+    async def activate(body: SessionInput):
+        c = ctl()
+        if c.state()["status"] != "idle" or c.lock.locked() or body.session_id != c.session_id:
+            raise HTTPException(409, "Wait until the Governor is ready")
+        c.selected = None
+        c.invalidate()
+        c.audio_session = True
+        c.listen_until = time.monotonic() + c.interaction.followup_seconds
+        c.caption = "YES? I'M LISTENING."
+        c.emotion = "curious"
+        return c.state()
+
+    @app.post("/api/room/check")
+    async def room_check():
+        c = ctl()
+        current = c.state()
+        allowed = (c.interaction.greetings and current["status"] == "idle" and not c.lock.locked()
+                   and not current["awake"] and time.monotonic() - c.last_activity >= 30)
+        snapshot = c.camera.snapshot()
+        if not c.arrivals.observe(snapshot, time.monotonic(), c.interaction.greeting_cooldown, allowed):
+            return {"greeting": None}
+        names = {p["id"]: p["name"] for p in c.memory.people()}
+        name = names.get(snapshot["present"][0]) if snapshot["face_count"] == 1 and len(snapshot["present"]) == 1 else None
+        c.selected = None
+        c.invalidate()
+        c.audio_session = True
+        c.listen_until = time.monotonic() + c.interaction.followup_seconds
+        result = await c.turn(text="Room arrival", greeting=True, greeting_name=name)
+        return {"greeting": result}
+
+    @app.post("/api/capture")
+    async def capture(body: SessionInput):
+        c = ctl()
+        current = c.state()
+        if body.session_id != c.session_id or not current["awake"] or current["status"] != "idle" or c.lock.locked():
+            raise HTTPException(409, "The listening window has ended")
+        if not c.capture_reserved:
+            # Once speech begins, allow a full bounded utterance even if the
+            # follow-up window was almost over. Repeated pings cannot extend it.
+            c.listen_until = time.monotonic() + 35
+            c.capture_reserved = True
+        return {"ok": True}
+
+    @app.post("/api/room/rehearse")
+    async def rehearse(body: SessionInput):
+        # A manual rehearsal uses the same fixed greeting, no fake camera identity.
+        return await ctl().turn(text="Room greeting rehearsal", session_id=body.session_id, greeting=True)
+
     @app.post("/api/test-voice")
     async def test_voice(body: SessionInput):
         return await ctl().turn(text="Speaker test", session_id=body.session_id, voice_test=True)
@@ -288,6 +388,8 @@ def create_app(config=None):
         if body.turn_id == ctl().turn_id and ctl().status == "speaking":
             ctl().status = "idle"
             ctl().last_activity = time.monotonic()
+            if ctl().audio_session:
+                ctl().listen_until = time.monotonic() + ctl().interaction.followup_seconds
         return {"ok": True}
 
     @app.post("/api/power")
@@ -308,10 +410,15 @@ def create_app(config=None):
 
     @app.post("/api/select")
     async def select(body: Selection):
+        ctl().state()
+        native_active = ctl().audio_session
         if body.person_id:
             ctl().memory.person(body.person_id)
         ctl().selected = body.person_id
         ctl().invalidate()
+        if native_active:
+            ctl().audio_session = True
+            ctl().listen_until = time.monotonic() + ctl().interaction.followup_seconds
         return ctl().state()
 
     @app.delete("/api/people/{ident}")
@@ -325,7 +432,28 @@ def create_app(config=None):
     @app.get("/api/people/{ident}/memories")
     async def memories(ident: str):
         ctl().memory.person(ident)
-        return ctl().memory.facts(ident)
+        return ctl().memory.archive(ident)
+
+    @app.post("/api/people/{ident}/automatic-memory")
+    async def automatic_memory(ident: str, body: MemoryPreference):
+        ctl().memory.automatic(ident, body.enabled)
+        if ctl().selected == ident:
+            ctl().invalidate()
+        return ctl().memory.person(ident)
+
+    @app.put("/api/people/{ident}/memories/{fact_id}")
+    async def edit_memory(ident: str, fact_id: str, body: TextInput):
+        ctl().memory.edit(ident, fact_id, body.text)
+        if ctl().selected == ident:
+            ctl().invalidate()
+        return {"ok": True}
+
+    @app.delete("/api/people/{ident}/memories")
+    async def erase_memories(ident: str):
+        ctl().memory.erase(ident)
+        if ctl().selected == ident:
+            ctl().invalidate()
+        return {"ok": True}
 
     @app.post("/api/people/{ident}/memories")
     async def remember(ident: str, body: TextInput):

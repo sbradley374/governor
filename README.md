@@ -1,6 +1,6 @@
 # The Governor
 
-A retro CRT companion for a Raspberry Pi: an expressive face, a conversational voice, and an explicit memory for people who choose to be remembered.
+A retro CRT companion for a Raspberry Pi: an expressive face, a conversational voice, and a lasting memory for people who choose to be remembered.
 
 **Built for your setup:** Raspberry Pi 5 / 8 GB, Raspberry Pi OS desktop, HDMI-to-composite converter, yellow video + white mono audio into the TV. Keep your existing working video configuration.
 
@@ -47,13 +47,25 @@ Try `hello`, `who are you?`, `tell me a joke`, `wow`, or `what do you remember a
 
 - Canvas CRT face: six emotional expressions, blinking, gaze motion, listening animation, and speech animation. Browser WAV playback drives mouth amplitude; native audio uses a speaking-state animation.
 - Two-click microphone recording (up to 30 seconds), text input, pause/resume, and sound controls.
-- Optional native hands-free worker with voice activity detection, pre-roll, trailing-silence detection, and half-duplex playback.
+- Offline “Governor” / “Hey Governor” wake detection, brief follow-up windows, voice activity detection, and half-duplex playback.
+- Camera-triggered arrival greetings, a configurable cooldown, and a no-hardware greeting rehearsal.
 - Cloud: OpenAI Responses + file transcription. Local: Ollama + faster-whisper. Speech synthesis: local eSpeak NG, with browser speech fallback for browser-initiated turns.
-- SQLite profiles, editable facts, opt-in face enrollment, familiarity from conversation count, and deletion controls. Recent conversation is RAM-only and cleared on a speaker switch.
+- SQLite profiles, opt-in automatic facts/preferences/projects and conversation summaries, relevant retrieval, correction/deletion controls, and familiarity from exchange count. Raw conversation history stays in RAM.
+- Confirm the speaker in the console or say “this is NAME” for an existing profile. Camera presence never silently selects a personal archive.
 - Local OpenCV YuNet/SFace recognition with confidence threshold, ambiguity rejection, and three-frame stabilization.
 - Pi installer, user service, kiosk launcher, diagnostics, and automated tests.
 
 This is a functional first version, **not yet hardware-validated on your Pi**. Cloud and Ollama contracts are tested with mocked responses; actual inference, microphone capture, TV audio, camera accuracy, and latency need device testing. No API key is configured and no paid API calls were made during development.
+
+## Memory and room interaction (v0.3)
+
+Create/select a profile, then enable **Remember useful details and conversation summaries automatically**. In demo mode, type `I like jazz` or `I am working on a robot`: the deliberately narrow rehearsal saves a note and a sample summary. Cloud/local AI modes extract useful notes from ordinary conversation using the same request as the reply. No extra memory API call or embedding service is needed; the larger response and retrieved context do add tokens to paid conversations.
+
+The archive supports **Edit**, **Forget**, and **Erase all memories**. Automatic notes may correct other automatic notes; manually entered/edited facts are protected. Editing or forgetting a fact also clears that person's summaries, which might repeat the old information. Correcting a summary pins it as a manual note. Erase-all disables automatic saving too. Turning saving off alone keeps existing memories available for recall.
+
+Use **Room manners → Rehearse an arrival** now, without a camera or API key. On the Pi, enable real arrival greetings after camera/audio setup. A single recognized face may get a named greeting; groups and unknown people get a general hello. A greeting opens a short reply window, but personal memory stays in visitor mode until a speaker is selected or introduces themself. The native worker returns to visitor mode after silence. There is no voice identification or simultaneous-speaker separation.
+
+A transferable source archive can be generated with `python3 scripts/package-pi.py`; see [Pi setup](docs/PI_SETUP.md). Models, keys, personal data, and the Mac virtual environment are excluded.
 
 ## Choose a brain
 
@@ -70,7 +82,7 @@ GOVERNOR_TRANSCRIBE_MODEL=gpt-transcribe
 
 Keep the key in `.env`, not in the browser or chat. The model must support Responses structured output and `reasoning.effort=none`; if changing model families, adjust `brain.py` accordingly. Local speech synthesis costs no API usage.
 
-**Example cost at rates checked November 2, 2026:** 20 exchanges/day, each averaging 2,000 input tokens and 200 output tokens, plus 10 recorded minutes/day costs about **$2.79 per 30 days**. At 100 exchanges and 50 recorded minutes/day, about **$13.95**. Rates used: GPT-5.4 mini $0.75/M input and $4.50/M output; transcription $0.0045/min. Actual costs vary with history, saved facts, recording duration, output, and pricing. These are estimates, not spending limits. API billing is separate from a ChatGPT subscription. The application bounds each recording and reply but does not enforce a monthly dollar cap.
+**Example cost at rates checked November 2, 2026:** 20 exchanges/day, each averaging 2,000 input tokens and 200 output tokens, plus 10 recorded minutes/day costs about **$2.79 per 30 days**. At 100 exchanges and 50 recorded minutes/day, about **$13.95**. Rates used: GPT-5.4 mini $0.75/M input and $4.50/M output; transcription $0.0045/min. Actual costs vary with history, retrieved memories, automatic memory output, recording duration, output, and pricing. The examples above do not add a separate allowance for automatic memory output. These are estimates, not spending limits. API billing is separate from a ChatGPT subscription. The application bounds each recording and reply but does not enforce a monthly dollar cap.
 
 Sources: [model pricing](https://developers.openai.com/api/docs/models/gpt-5.4-mini), [API pricing](https://developers.openai.com/api/docs/pricing?latest-pricing-expanded=true), [file transcription](https://developers.openai.com/api/docs/guides/speech-to-text), [structured output](https://developers.openai.com/api/docs/guides/structured-outputs).
 

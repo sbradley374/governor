@@ -26,10 +26,10 @@ async function poll(){
     document.documentElement.style.setProperty('--screen-brightness',String((state.display?.brightness??.85)*(state.dimmed ? .18 : 1)));
     if(state.dimmed)$('kiosk-caption').textContent='Resting. Click the face to wake.';
     $('connection').textContent='CONNECTED';
-    governorFace.setState(recording?{...state,status:'listening'}:state);
+    governorFace.setState(recording||(state.awake&&state.status==='idle')?{...state,status:'listening'}:state);
     $('mode').textContent=state.provider==='demo'?'DEMO / OFFLINE':state.provider==='local'?'LOCAL / AI':'CLOUD / AI';
     $('provider-footer').textContent=state.provider==='demo'?'LOCAL DEMONSTRATION':state.provider==='local'?'LOCAL REASONING · LOCAL MEMORY':'CLOUD REASONING · LOCAL MEMORY';
-    const label=recording?'LISTENING':({idle:'STANDING BY',speaking:'ON AIR',thinking:'CONSIDERING',listening:'TRANSCRIBING',paused:'RESTING'}[state.status]||state.status.toUpperCase());
+    const label=recording?'LISTENING':({idle:state.awake?'LISTENING FOR A REPLY':'STANDING BY',speaking:'ON AIR',thinking:'CONSIDERING',listening:'TRANSCRIBING',paused:'RESTING'}[state.status]||state.status.toUpperCase());
     $('face-state').textContent='● '+label;$('activity').textContent=label;
     $('caption').textContent='“'+state.caption+'”';$('kiosk-caption').textContent=state.dimmed?'Resting. Click the face to wake.':state.error||state.caption;$('transcript').textContent=state.transcript?'YOU / '+state.transcript:'';
     $('pause').textContent=state.paused?'Resume':'Pause';
@@ -49,7 +49,27 @@ async function poll(){
   setTimeout(poll,500);
 }
 async function loadPeople(){people=await api('/people',undefined,'GET');const selected=state.selected||$('person').value;$('person').replaceChildren(new Option('Visitor · no lasting memory',''));people.forEach(p=>$('person').add(new Option(p.name,p.id)));$('person').value=selected;await loadMemories()}
-async function loadMemories(){const id=$('person').value;$('profile-details').hidden=!id;if(!id)return;const profile=people.find(p=>p.id===id);$('familiarity').textContent=`${profile?.turns||0} conversations · ${(profile?.turns||0)>10?'a familiar presence':'getting acquainted'}`;const facts=await api(`/people/${id}/memories`,undefined,'GET');if($('person').value!==id)return;$('memories').replaceChildren();facts.forEach(f=>{const row=document.createElement('div');row.className='memory';const text=document.createElement('span');text.textContent=f.text;const button=document.createElement('button');button.className='text-button';button.textContent='Forget';button.onclick=()=>guard(async()=>{await api(`/people/${id}/memories/${f.id}`,undefined,'DELETE');await loadMemories()});row.append(text,button);$('memories').append(row)})}
+async function loadMemories(){
+  const id=$('person').value;$('profile-details').hidden=!id;if(!id)return;
+  const profile=people.find(p=>p.id===id);
+  $('familiarity').textContent=`${profile?.turns||0} ${(profile?.turns||0)===1?'exchange':'exchanges'} · ${(profile?.turns||0)>10?'a familiar presence':'getting acquainted'}`;
+  $('auto-memory').checked=Boolean(profile?.auto_memory);
+  const facts=await api(`/people/${id}/memories`,undefined,'GET');
+  if($('person').value!==id)return;
+  $('memories').replaceChildren();
+  facts.forEach(f=>{
+    const row=document.createElement('div');row.className='memory';
+    const text=document.createElement('span');text.textContent=f.text;
+    const meta=document.createElement('small');meta.className='hint';
+    meta.textContent=`${f.kind||'fact'} · ${f.source||'explicit'} · ${new Date(f.created).toLocaleDateString()}`;
+    const content=document.createElement('div');content.append(text,document.createElement('br'),meta);
+    const edit=document.createElement('button');edit.className='text-button';edit.textContent='Edit';
+    edit.onclick=()=>{const value=prompt('Correct this memory (maximum 500 characters):',f.text);if(value!==null)guard(async()=>{await api(`/people/${id}/memories/${encodeURIComponent(f.id)}`,{text:value},'PUT');await loadMemories()})};
+    const button=document.createElement('button');button.className='text-button';button.textContent='Forget';
+    button.onclick=()=>guard(async()=>{await api(`/people/${id}/memories/${encodeURIComponent(f.id)}`,undefined,'DELETE');await loadMemories()});
+    row.append(content,edit,button);$('memories').append(row);
+  });
+}
 async function guard(fn){try{notice();await fn()}catch(e){notice(e.message)}}
 async function done(turnId){try{await api('/playback/done',{turn_id:turnId})}catch(e){notice('Playback ended; reconnecting to the Governor.')}}
 async function play(result){
@@ -77,7 +97,7 @@ async function submit(path,body){
     const result=await api(path,body);
     const current=await api('/state',undefined,'GET');
     controlGeneration++;
-    if((submittedSession&&current.session_id!==submittedSession)||current.turn_id!==result.turn_id)return;
+    if((current.session_id!==(result.session_id||submittedSession))||current.turn_id!==result.turn_id)return;
     state=current;
     await play(result);await loadPeople();
   }catch(e){notice(e.message)}finally{busy=false}
@@ -105,6 +125,8 @@ $('fullscreen').onclick=()=>{window.open('/?display=1','governor-display')};
 $('person').onchange=()=>guard(async()=>{controlGeneration++;stopPlayback();stopRecording(true);state=await api('/select',{person_id:$('person').value||null});controlGeneration++;await loadMemories()});
 $('new-person').onclick=()=>$('intro-dialog').showModal();$('cancel-intro').onclick=()=>$('intro-dialog').close();
 $('intro-form').onsubmit=e=>{e.preventDefault();guard(async()=>{const p=await api('/people',{name:$('name').value,consent:$('consent').checked});state=await api('/select',{person_id:p.id});$('intro-dialog').close();$('intro-form').reset();await loadPeople()})};
+$('auto-memory').onchange=()=>guard(async()=>{await api(`/people/${$('person').value}/automatic-memory`,{enabled:$('auto-memory').checked});await loadPeople()});
+$('erase-memories').onclick=()=>{if(confirm('Erase saved facts, summaries, and familiarity for this person? Automatic saving will also turn off.'))guard(async()=>{await api(`/people/${$('person').value}/memories`,undefined,'DELETE');await loadPeople()})};
 $('memory-form').onsubmit=e=>{e.preventDefault();guard(async()=>{await api(`/people/${$('person').value}/memories`,{text:$('memory-input').value});$('memory-input').value='';await loadMemories()})};
 $('delete-person').onclick=()=>{if(confirm('Erase this profile, its memories, and its face template?'))guard(async()=>{await api(`/people/${$('person').value}`,undefined,'DELETE');state.selected=null;await loadPeople()})};
 $('enroll').onclick=()=>{if(confirm('Does this person agree to local face recognition? Make sure only their face is visible. A face template will be saved on this device.'))guard(async()=>{await api(`/people/${$('person').value}/face`,{consent:true});notice('Face enrolled. Recognition is an estimate, not proof of identity.');await loadPeople()})};

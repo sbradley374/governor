@@ -1,30 +1,29 @@
-# Delivery status — November 2, 2026
+# Delivery status — November 2, 2026 / v0.3
 
 ## Implemented and exercised on the development Mac
 
-- Demo backend, HTTP service, console, and animated CRT face.
-- Profile CRUD, persistence, explicit memory commands, deletion, and conversation counts.
-- Conversation serialization, cancellation, cross-profile history clearing, failure recovery.
-- Cloud and local provider request contracts (mocked HTTP).
-- Audio segmentation logic and conservative face matching logic.
-- Browser visual preview in Safari; a scripted joke and expression preview exercised through the actual interface. JavaScript and shell syntax checks.
-- Offline hardware workbench, persistent display preferences, idle dim/wake, and local voice-test endpoint.
-- Session tokens reject old recordings/messages after speaker changes or server restart, before transcription.
-- 21 passing Python tests and 3 passing JavaScript renderer regression tests.
+- Demo console, expressive CRT face, display preferences, workbench, and arrival rehearsal.
+- Persistent profile memory: manual facts, optional automatic notes and session summaries, lexical retrieval, corrections, deletion, opt-out, and additive migration of existing databases.
+- Demo memory extraction for “I like …” and “I am working on …”; actual LLM extraction contracts tested with mocked HTTP.
+- Local Vosk wake detector recognizes a synthetic “Governor” sample without microphone access or cloud calls.
+- Arrival debounce/cooldown/departure logic, general/named greetings, visitor reset, timed reply windows, and spoken profile selection.
+- Cancellation prevents delayed model notes from being filed after a speaker/session change.
+- Safari UI verified: arrival rehearsal, profile creation, enabling automatic memory, saving a demo preference/summary, and correcting a memory.
+- 39 Python tests plus 3 JavaScript renderer tests pass. JavaScript and shell syntax checks pass.
+- Pi setup and optional audio-service installer, checksummed model downloader, source-only portable archive builder.
 
-## Implemented, still requiring external setup or hardware verification
+## Still needs hardware or provider setup
 
-- OpenAI transcription/reasoning: requires API key and account model access.
-- Ollama + faster-whisper: requires optional dependencies and model downloads; Pi performance unmeasured.
-- eSpeak synthesis and actual audio output: eSpeak is not installed on this Mac; Pi installer includes it.
-- Browser microphone and native hands-free capture: need a microphone and device calibration.
-- Camera recognition/enrollment: need USB UVC camera, camera extras, and downloaded OpenCV models.
-- Raspberry Pi service, kiosk autostart, converter audio, and CRT overscan: require installation on the Pi.
+- API key and account model access for real cloud reasoning/transcription; no paid API requests made.
+- Pi access (SSH or USB transfer), installation, service startup, HDMI converter audio, and CRT framing.
+- USB microphone: test room-distance wake accuracy, false activations, speech transcription, noise thresholds, and half-duplex playback.
+- USB UVC camera: download face models, enroll consenting people, calibrate recognition, and test arrivals under actual room lighting.
+- Local Ollama/faster-whisper remain optional and unmeasured on this Pi.
 
-No Pi connection or SSH host is available yet. No camera/microphone was activated. No paid API calls were made. Demo is not an LLM; choose cloud or local mode for real conversation.
+No microphone or camera was activated during development. Wake-model testing used synthetic audio written to a temporary file. The local app remains in no-key demo mode.
 
-## Deliberate first-version boundaries
+## Boundaries
 
-No wake word, speech interruption, automatic speaker attribution, CSI camera adapter, automatic memory extraction, or physical motor control. The personality is a configured persona with explicit facts and familiarity, not an autonomous self-training system. The operator selects the current speaker; camera recognition offers presence suggestions.
+There is no speaker diarization, voice authentication, liveness detection, speech interruption/barge-in, automatic face enrollment, CSI-camera adapter, or physical motor control. Face presence may trigger a greeting but never selects a personal archive. The persona uses remembered context; it does not retrain itself or develop real feelings.
 
-Cloud remains the chosen backend for real conversation, but API setup is deferred. The development app runs in demo mode with no credentials or paid calls. The browser microphone meter is implemented but physical capture was not activated during development.
+Native wake/camera interaction is implemented and portable, but must be calibrated on the real Pi. Automatic memory adds input/output tokens to normal AI replies; local wake detection, local face recognition, fixed arrival greetings, SQLite storage, and local eSpeak add no API call charges. No monthly spending cap is enforced.

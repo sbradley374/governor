@@ -32,5 +32,6 @@ jobs:
           node --check governor/static/app.js
           node --check governor/static/face.js
           node --check governor/static/workbench.js
+          node --check governor/static/room.js
       - name: Installation script syntax
         run: bash -n scripts/*.sh

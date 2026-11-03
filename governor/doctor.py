@@ -15,9 +15,9 @@ def run():
     print(f"Provider: {config.provider} / API key: {'configured' if config.api_key else 'not configured'}")
     print(f"Speech engine: {shutil.which('espeak-ng') or shutil.which('espeak') or 'missing (browser fallback only)'}")
     print(f"Data: {config.data_dir.resolve()}")
-    for package in ['sounddevice', 'cv2', 'faster_whisper']:
+    for package in ['sounddevice', 'cv2', 'faster_whisper', 'vosk']:
         print(f"{package}: {'installed' if importlib.util.find_spec(package) else 'not installed (optional)'}")
-    for name in ['yunet.onnx', 'sface.onnx']:
+    for name in ['yunet.onnx', 'sface.onnx', 'vosk-model-small-en-us-0.15/am/final.mdl']:
         print(f"{name}: {'found' if (config.model_dir / name).exists() else 'not downloaded'}")
     if importlib.util.find_spec('sounddevice'):
         import sounddevice

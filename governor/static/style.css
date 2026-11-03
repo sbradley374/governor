@@ -146,3 +146,7 @@ body[data-palette=ice] .screen-top,body[data-palette=ice] .screen-bottom,body[da
 body.kiosk .workbench{display:none}
 @media(max-width:900px){.bench-grid{grid-template-columns:1fr 1fr}.bench-grid>div:last-child{grid-column:1/-1}}
 @media(max-width:690px){.bench-grid{grid-template-columns:1fr}.bench-grid>div:last-child{grid-column:auto}}
+
+.memory>div{flex:1;min-width:0;overflow-wrap:anywhere}
+.memory>button{flex-shrink:0}
+#interaction-form input[type=number]{max-width:90px;margin:8px 0}
