@@ -46,3 +46,13 @@ test('background animation stops drawing between state updates', () => {
   r.queue.shift()(5000);
   assert.equal(r.rectangles.length, 0);
 });
+
+test('ambient gaze and one-eye wink render without changing interactive defaults', () => {
+  const r = renderer();
+  r.rectangles.length = 0;
+  r.scope.window.governorFace.setState({status:'idle', emotion:'neutral', pose:{x:20,y:5,wink:'left'}});
+  const eyes = r.rectangles.filter(rect => rect.args[2] === 76);
+  assert.equal(eyes.length,2);
+  assert.ok(eyes[0].args[3] < eyes[1].args[3]);
+  assert.ok(eyes[0].args[0] > 190);
+});

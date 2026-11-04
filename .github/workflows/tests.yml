@@ -26,11 +26,12 @@ jobs:
       - name: Python tests (no devices or API credentials)
         run: python -m pytest -q
       - name: Renderer regression tests
-        run: node --test tests/face.test.cjs
+        run: node --test tests/*.test.cjs
       - name: JavaScript syntax
         run: |
           node --check governor/static/app.js
           node --check governor/static/face.js
+          node --check governor/static/ambient.js
           node --check governor/static/workbench.js
           node --check governor/static/room.js
       - name: Installation script syntax

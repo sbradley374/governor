@@ -1,0 +1,8 @@
+:root{color-scheme:dark;background:#000;color:#b8efa0;font-family:monospace}
+*{box-sizing:border-box}
+body{margin:0;width:100vw;height:100dvh;display:grid;place-items:center;overflow:hidden;cursor:none}
+#screen{position:relative;width:min(100vw,133.333dvh);aspect-ratio:4/3;background:#0b180f}
+canvas{display:block;width:100%;height:100%;filter:brightness(.72)}
+#caption{position:absolute;left:10%;right:10%;bottom:7%;margin:0;text-align:center;font-size:clamp(8px,1.9vw,20px);letter-spacing:.1em;opacity:.65;line-height:1.4}
+#help{position:fixed;inset:12% 12% auto;padding:24px;border:1px solid currentColor;background:#07120af5;line-height:1.8;font-size:14px;cursor:auto}
+[hidden]{display:none!important}

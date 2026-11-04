@@ -27,3 +27,7 @@ No microphone or camera was activated during development. Wake-model testing use
 There is no speaker diarization, voice authentication, liveness detection, speech interruption/barge-in, automatic face enrollment, CSI-camera adapter, or physical motor control. Face presence may trigger a greeting but never selects a personal archive. The persona uses remembered context; it does not retrain itself or develop real feelings.
 
 Native wake/camera interaction is implemented and portable, but must be calibrated on the real Pi. Automatic memory adds input/output tokens to normal AI replies; local wake detection, local face recognition, fixed arrival greetings, SQLite storage, and local eSpeak add no API call charges. No monthly spending cap is enforced.
+
+## Silent display milestone — November 4, 2026
+
+A standalone local HTML face now provides randomized gaze, expressions, winks, blinking, and short rests without the backend, API, camera, microphone, or speaker. A small face-only archive and desktop-autostart installer are available. Seven JavaScript checks pass, including offline ambient behavior and renderer regressions. Physical Pi transfer/startup remains blocked by lack of network access and setup peripherals; a wired USB keyboard is the simplest next setup tool. See FACE_ONLY.md.

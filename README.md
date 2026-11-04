@@ -4,6 +4,10 @@ A retro CRT companion for a Raspberry Pi: an expressive face, a conversational v
 
 **Built for your setup:** Raspberry Pi 5 / 8 GB, Raspberry Pi OS desktop, HDMI-to-composite converter, yellow video + white mono audio into the TV. Keep your existing working video configuration.
 
+## Start with just the face
+
+No microphone, camera, speaker, or API yet? Open `governor/static/ambient.html` for the silent standalone face: blinking, wandering eyes, expressions, winks, and little rests. It works offline without the backend. Use `python3 scripts/package-face.py` to make a small Pi transfer bundle, then follow [the face-only setup guide](docs/FACE_ONLY.md). A keyboard or another physical setup method is needed to get an offline Pi onto the network first.
+
 ## Try it now
 
 Clone the repository and install the demo:

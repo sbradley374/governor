@@ -31,14 +31,16 @@
     ctx.fillStyle = ink;
     ctx.shadowColor = ink;
     ctx.shadowBlur = state.paused ? 2 : 10;
-    const dx = reduced ? 0 : Math.sin(t * .47) * 7;
-    const dy = reduced ? 0 : Math.sin(t * .8) * 3;
+    const dx = reduced ? 0 : Math.sin(t * .47) * 7 + Math.max(-30, Math.min(30, state.pose?.x || 0));
+    const dy = reduced ? 0 : Math.sin(t * .8) * 3 + Math.max(-16, Math.min(16, state.pose?.y || 0));
     const blink = t < blinkUntil || state.paused || state.dimmed;
     const eyeH = blink ? 7 : mood === 'surprised' ? 76 : mood === 'happy' ? 42 : 60;
     const y = 178 + dy;
-    for (const x of [190 + dx, 374 + dx]) {
-      rect(x, y + (60 - eyeH) / 2, 76, eyeH);
-      if (!blink && mood === 'happy') {
+    for (const [index, x] of [190 + dx, 374 + dx].entries()) {
+      const wink = !blink && state.pose?.wink === (index === 0 ? 'left' : 'right');
+      const height = wink ? 7 : eyeH;
+      rect(x, y + (60 - height) / 2, 76, height);
+      if (!blink && !wink && mood === 'happy') {
         ctx.clearRect(x - 2, y + 35, 12, 23);
         ctx.clearRect(x + 66, y + 35, 12, 23);
       }
